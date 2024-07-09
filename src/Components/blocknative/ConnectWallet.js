@@ -43,7 +43,6 @@ const StyledDropButton = styled.button`
 }
 `;
 export default function ConnectWallet({ setErrorFlag, setErrorContent, getStakingId, getValueByPlan,setAccount, account }) {
-    let provider;
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const toggle = () => setDropdownOpen((prevState) => !prevState);
     const [ wrongChain, setWrongChain ] = useState(false)
@@ -61,42 +60,51 @@ export default function ConnectWallet({ setErrorFlag, setErrorContent, getStakin
         setChain // function to call to initiate user to switch chains in their wallet
       ] = useSetChain()
 
-    useEffect(() => {
-        if (!wallet?.provider) {
-            provider = null
-        } else {
-            provider = new ethers.providers.Web3Provider(wallet.provider, 'any');
-        }
-    }, [wallet])
-
-    const chainOptions = {
+      const chainOptions = {
         chainId: ADDRESSES.CHAINID,
         rpcUrl: `https://sepolia.infura.io/v3/${process.env.REACT_APP_INFURA_KEY}`,
         label: 'Sepolia test network',
         token: 'ETH'
     }
+            
+      const handleConnect = async () => {
+                connect();
+                if (wallet?.provider) {
+                    const provider = new ethers.providers.Web3Provider(wallet.provider, 'any');
+                    try {
+                        await provider.send('wallet_switchEthereumChain', [{ chainId: chainOptions.chainId }]);
+                        setShowChainModal(false);
+                    } catch (error) {
+                        console.error('Failed to switch network:', error);
+                    }
+                }
+            };
 
     const handleChain = () => {
         setShowChainModal(true)
     }
 
     useEffect(() => {
-        if (wallet?.provider) {
-            const { name, avatar } = wallet?.accounts[0].ens ?? {};
-            console.log("ski312-account", account)
-            if(ADDRESSES.CHAINID !== connectedChain.id) {
-                setWrongChain(true)
-            } else {
-                setErrorFlag(false)
-                setAccount({
-                    address: wallet.accounts[0].address,
-                    balance: wallet.accounts[0].balance,
-                    ens: { name, avatar: avatar?.url }
-                });
-                setWrongChain(false)
-            }
+        if (!wallet?.provider) {
+            return;
         }
-    }, [wallet, connectedChain]);
+
+        // Check if connected chain is Ethereum Mainnet
+        if (connectedChain?.id !== chainOptions.chainId) {
+            setWrongChain(true);
+            setShowChainModal(true);
+        } else {
+            setWrongChain(false);
+            setShowChainModal(false);
+            setErrorFlag(false);
+            // Update account details if necessary
+            setAccount({
+                address: wallet.accounts[0].address,
+                balance: wallet.accounts[0].balance,
+                ens: wallet.accounts[0].ens || {}
+            });
+        }
+    }, [wallet,connectedChain]);
     
     if (wallet?.provider && account) {
         return (
@@ -127,7 +135,7 @@ export default function ConnectWallet({ setErrorFlag, setErrorContent, getStakin
     }
     return (
         <>
-            <StyledButton className='active' style={{ height: 40 }} disabled={connecting} onClick={() => connect()}>
+            <StyledButton className='active' style={{ height: 40 }} disabled={connecting} onClick={ ()=>handleConnect()}>
                 Connect
             </StyledButton>
         </>
